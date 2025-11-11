@@ -129,7 +129,8 @@ def cargar_datos():
     return df
 
 df = cargar_datos()
-df["CD"] = df["CD"].fillna("Desconocido").astype(str)
+if "CD" in df.columns:
+    df["CD"] = df["CD"].astype(str).fillna("Desconocido")
 
 # --- Interfaz ---
 st.title("📊 Histórico ENSU - Inseguridad, Hábitos, Expectativas y Efectividad de Autoridades")
