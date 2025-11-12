@@ -13,7 +13,7 @@ import gdown
 
 # --- Grupo 1: Percepción de inseguridad por tipo de lugar ---
 percepcion_lugares = {
-    "BP1_1": "En la ciudad"
+    "BP1_1": "En la ciudad",
     "BP1_2_01": "En su casa",
     "BP1_2_02": "En su lugar de trabajo",
     "BP1_2_03": "En la calle",
