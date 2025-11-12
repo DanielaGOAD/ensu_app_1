@@ -91,6 +91,99 @@ conocimiento_programas = {
     "BP3_2A": "Conoce programas de prevención contra la violencia/delincuencia"
 }
 
+# --- Mapeo de códigos de ciudad a nombres ---
+mapeo_ciudades = {
+    1: "AGUASCALIENTES",
+    2: "MEXICALI",
+    3: "TIJUANA",
+    4: "LA PAZ",
+    5: "SAN FRANCISCO DE CAMPECHE",
+    6: "SALTILLO",
+    7: "LA LAGUNA",
+    8: "PIEDRAS NEGRAS",
+    9: "COLIMA",
+    10: "MANZANILLO",
+    11: "TUXTLA GUTIERREZ",
+    12: "TAPACHULA",
+    13: "CHIHUAHUA",
+    14: "CIUDAD JUAREZ",
+    19: "DURANGO",
+    20: "LEON DE LOS ALDAMA",
+    21: "ACAPULCO DE JUAREZ",
+    22: "CHILPANCINGO DE LOS BRAVO",
+    23: "PACHUCA DE SOTO",
+    25: "PUERTO VALLARTA",
+    26: "TOLUCA DE LERDO",
+    27: "ECATEPEC DE MORELOS",
+    28: "CIUDAD NEZAHUALCOYOTL",
+    29: "MORELIA",
+    30: "URUAPAN",
+    31: "LAZARO CARDENAS",
+    32: "CUERNAVACA",
+    33: "TEPIC",
+    35: "OAXACA DE JUAREZ",
+    36: "HEROICA PUEBLA DE ZARAGOZA",
+    37: "QUERETARO",
+    38: "CANCUN",
+    39: "SAN LUIS POTOSI",
+    40: "CULIACAN ROSALES",
+    41: "MAZATLAN",
+    42: "LOS MOCHIS",
+    43: "HERMOSILLO",
+    44: "NOGALES",
+    45: "VILLAHERMOSA",
+    46: "TAMPICO",
+    47: "REYNOSA",
+    48: "NUEVO LAREDO",
+    49: "TLAXCALA DE XICOHTENCATL",
+    50: "VERACRUZ",
+    51: "COATZACOALCOS",
+    52: "MERIDA",
+    53: "ZACATECAS",
+    54: "FRESNILLO",
+    55: "LOS CABOS",
+    56: "CIUDAD DEL CARMEN",
+    57: "GUANAJUATO",
+    58: "IXTAPA-ZIHUATANEJO",
+    59: "GUADALAJARA",
+    60: "TONALA",
+    61: "TLAJOMULCO DE ZUNIGA",
+    62: "SAN PEDRO TLAQUEPAQUE",
+    63: "ZAPOPAN",
+    64: "MONTERREY",
+    65: "SAN PEDRO GARZA GARCIA",
+    66: "APODACA",
+    67: "GUADALUPE",
+    68: "GENERAL ESCOBEDO",
+    69: "SAN NICOLAS DE LOS GARZA",
+    70: "SANTA CATARINA",
+    71: "AZCAPOTZALCO",
+    72: "COYOACAN",
+    73: "CUAJIMALPA DE MORELOS",
+    74: "GUSTAVO A. MADERO",
+    75: "IZTACALCO",
+    76: "IZTAPALAPA",
+    77: "LA MAGDALENA CONTRERAS",
+    78: "MILPA ALTA",
+    79: "ALVARO OBREGON",
+    80: "TLAHUAC",
+    81: "TLALPAN",
+    82: "XOCHIMILCO",
+    83: "BENITO JUAREZ",
+    84: "CUAUHTEMOC",
+    85: "MIGUEL HIDALGO",
+    86: "VENUSTIANO CARRANZA",
+    87: "TLALNEPANTLA DE BAZ",
+    88: "NAUCALPAN DE JUAREZ",
+    89: "CUAUTITLAN IZCALLI",
+    90: "ATIZAPAN DE ZARAGOZA",
+    91: "CHIMALHUACAN",
+    92: "IRAPUATO",
+    93: "CHETUMAL",
+    94: "CIUDAD OBREGON",
+    95: "CIUDAD VICTORIA",
+    96: "XALAPA"
+}
 
 # --- Cargar datos desde Google Drive ---
 @st.cache_data
@@ -130,8 +223,15 @@ def cargar_datos():
     return df
 
 df = cargar_datos()
-if "CD" in df.columns:
-    df["CD"] = df["CD"].astype(str).fillna("Desconocido")
+
+# Aseguramos que CD sea entero (aunque esté como string o categoría)
+df["CD"] = pd.to_numeric(df["CD"], errors="coerce").fillna(-1).astype(int)
+
+# Mapeamos el nombre de la ciudad
+df["NOMBRE_CIUDAD"] = df["CD"].map(mapeo_ciudades).fillna("Desconocido")
+
+# Si prefieres mantener CD como string para compatibilidad:
+df["CD"] = df["CD"].astype(str)
 
 # --- Interfaz ---
 st.title("📊 Histórico ENSU - Inseguridad, Hábitos, Expectativas y Efectividad de Autoridades")
@@ -180,16 +280,19 @@ else: # tipo_variable == "Conocimiento de programas de prevención contra la vio
     opciones = conocimiento_programas
 
 variable_sel = st.selectbox("Selecciona la variable:", list(opciones.values()))
-ciudades = sorted(df["CD"].unique())
-ciudad_sel = st.selectbox("Selecciona la ciudad:", ["Estados Unidos Mexicanos"] + ciudades)
-
+# Lista única de nombres de ciudades (sin "Desconocido")
+nombres_ciudades = sorted(df[df["NOMBRE_CIUDAD"] != "Desconocido"]["NOMBRE_CIUDAD"].unique())
+ciudad_sel = st.selectbox(
+    "Selecciona la ciudad:",
+    ["Estados Unidos Mexicanos"] + list(nombres_ciudades)
+)
 # --- Obtener columna asociada ---
 variable_col = [k for k, v in opciones.items() if v == variable_sel][0]
 
 # --- Filtrar por ciudad ---
-df_filtrado = df.copy() # Usamos una copia para no alterar el df original
+df_filtrado = df.copy()
 if ciudad_sel != "Estados Unidos Mexicanos":
-    df_filtrado = df_filtrado[df_filtrado["CD"] == ciudad_sel]
+    df_filtrado = df_filtrado[df_filtrado["NOMBRE_CIUDAD"] == ciudad_sel]
 
 # --- Filtrar por periodo según tipo ---
 if tipo_variable == "Efectividad de autoridades (2024–2025)":
