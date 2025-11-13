@@ -340,7 +340,7 @@ def calcular_porcentaje(df, col, tipo):
     # --- Lógica para los otros tipos ---
     else:
         # ✅ Corrección clave: para "Percepción de inseguridad", solo usar 1 y 2
-        if tipo == "Percepción de inseguridad":
+        if tipo in ["Percepción de inseguridad", "Cambio de hábitos"]:
             df_val = df[df[col].isin([1, 2])].copy()
         else:
             # Para otros tipos, mantener el rango original
