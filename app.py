@@ -301,6 +301,7 @@ elif tipo_variable == "Efectividad de autoridades (2021–2023)":
     df_filtrado = df_filtrado[df_filtrado["ANIO"].between(2021, 2023)]
 
 # --- Función para calcular porcentaje ponderado ---
+# --- Función para calcular porcentaje ponderado ---
 def calcular_porcentaje(df, col, tipo):
     # --- Lógica para "Conocimiento de programas de prevención" ---
     if tipo == "Conocimiento de programas de prevención contra la violencia/delincuencia":
@@ -338,7 +339,13 @@ def calcular_porcentaje(df, col, tipo):
 
     # --- Lógica para los otros tipos ---
     else:
-        df_val = df[df[col].isin([1, 2, 3, 4, 9])].copy()
+        # ✅ Corrección clave: para "Percepción de inseguridad", solo usar 1 y 2
+        if tipo == "Percepción de inseguridad":
+            df_val = df[df[col].isin([1, 2])].copy()
+        else:
+            # Para otros tipos, mantener el rango original
+            df_val = df[df[col].isin([1, 2, 3, 4, 9])].copy()
+
         if df_val.empty:
             return pd.DataFrame(columns=["ANIO", "TRIMESTRE", "PORCENTAJE"])
 
