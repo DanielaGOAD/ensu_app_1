@@ -1,3 +1,6 @@
 streamlit
 pandas
 gdown
+numpy
+plotly
+
