@@ -10,6 +10,8 @@ Original file is located at
 import streamlit as st
 import pandas as pd
 import gdown
+import tempfile
+import os
 
 # --- Grupo 1: Percepción de inseguridad por tipo de lugar ---
 percepcion_lugares = {
@@ -185,165 +187,124 @@ mapeo_ciudades = {
     96: "XALAPA"
 }
 
-# --- Cargar datos desde Google Drive ---
-@st.cache_data
-def cargar_datos():
-    file_id = "1VLMGozkGzj1eETDBAMQU296P2Z4r1wpY"
+# --- Mapeo de períodos a file_id en Google Drive ---
+archivos_drive = {
+    "2016_T1": "1ghdDbt50Pvko3DT_3FF8RmvUYj0HO2Ga",
+    "2016_T2": "1c8ADcug1cmvbf2a3Uo3nPHG72YR2rMA_",
+    "2016_T3": "1wUvvqZS5ST3DKjyzDAgLo-kLTIs-Rhjc",
+    "2016_T4": "1_2sUZ-Y7VrefPhIlO24tklfO73cNELsf",
+    "2017_T1": "1DqrMJO2ek3NJshIOlEv1vqzN-QC6FZHL",
+    "2017_T2": "1Zt6gymHT3_dxdPJhmrGYFCE5VLthOZTX",
+    "2017_T3": "1fVFFBYu57HXUSmGYitWECi7xb9zegAi_",
+    "2017_T4": "1WNosoki7PSIxxpsfONnZQbBEoKeSmq19",
+    "2018_T1": "1UpzcczGkkTzLxN5JKjO4X97jGpZCE4D1",
+    "2018_T2": "10Av2wUzqz_GGdrECxtz0lnojlA4uF6U2",
+    "2018_T3": "1QtoYFnQmYMexZaoq2vYTIThp0umm30mB",
+    "2018_T4": "1jvMqOhAlG3G7JWnNC-GuqqM_OtYe58-V",
+    "2019_T1": "1Hj0y9ZHDCH2e3BZFrWJewiYWqYP8ZA5B",
+    "2019_T2": "1KT72-sjz98LRF_S3VvhAb9MyRbJ9xMP1",
+    "2019_T3": "1yUIGA-hDxjVsv50kCi4DD-tWVPCp2MrH",
+    "2019_T4": "1gA0rst5Qnq-3C3Da4M3QNzvZPtvLVPVt",
+    "2020_T1": "1jS53aQSqSXHo72C1miqZUA3vLOSNTLQ1",
+    "2020_T3": "1oW1R7Q5oLcT42zdp7I4GYEbR_DNqpaYH",
+    "2020_T4": "1W_k-NUDdnhg-trNk4EHho4wNzjQx1UPB",
+    "2021_T2": "10sPNBuddD1mf1mgVL4gs-t24wH5es4bn",
+    "2021_T3": "10U-V5FSPJuvxMnT_j2sBG4ezWevyfzVh",
+    "2021_T4": "1VDDUXhgw-7qHUBmIHKHbe1Xnxv86JQ94",
+    "2022_T1": "1Veij1F7jXypmQMXVKTn963rHqTQTJJe8",
+    "2022_T2": "1avcNBKptqOLuvWNli2ekj0vUikLc-6qF",
+    "2022_T3": "1UkMKlUhPSK40DT8jWxIqcrZTAjxEOGSk",
+    "2022_T4": "1wAM-vuicvApAfV3KkcnPGHDWSbCo1TzM",
+    "2023_T1": "123CkeuU4qulPFzcCif_APTOMeYCxV5_j",
+    "2023_T2": "1sCzkxX4cAkhzD931fNotXD0nD1XbEA-_",
+    "2023_T3": "1hwI23DowY3wezM9gVUenUV0yJcy_e-QN",
+    "2023_T4": "1dWAQLqfpQMP98hXCk4o1gTw6sz8d0Ax0",
+    "2024_T1": "1U2G5uRYd6PWlCza1WffM5Ei69WfciU-I",
+    "2024_T2": "1F4Ja5nLH7b3a4vYUlYv7uLt0lXLNnMwr",
+    "2024_T3": "1gjdrI1Ndkuk-H9-JnovtHQ1aEdsiwKlN",
+    "2024_T4": "1Kg16Rey0vFNbG0iEYGMlbOypq6kx-Q7u",
+    "2025_T1": "1qxpr0MSCuWK2E6LnCyN9U3sb1hs00m2z",
+    "2025_T2": "1f4RqCyISoyMj5ODyv2dzOOJlORP86Bnh",
+    "2025_T3": "18PxgXnMNrCdh8ISV5AHc3u-CF5-9ESNp"
+}
+
+# --- Definir columnas y tipos una sola vez (fuera de funciones) ---
+columnas_necesarias = (
+    ["ANIO", "TRIMESTRE", "CD", "NOM_CD", "FAC_SEL"]
+    + list(percepcion_lugares.keys())
+    + list(cambios_habitos.keys())
+    + list(set(efectividad_autoridades_2024_2025.keys()) | set(efectividad_autoridades_2021_2023.keys()))
+    + list(expectativas_delincuencia.keys())
+    + list(efectividad_gobierno.keys())
+    + list(otro_problema.keys())
+    + list(conocimiento_programas.keys())
+)
+
+dtype_dict = {
+    "ANIO": "int16",
+    "TRIMESTRE": "int8",
+    "CD": "category",
+    "NOM_CD": "category",
+    "FAC_SEL": "float32"
+}
+for col in columnas_necesarias:
+    if col not in ["ANIO", "TRIMESTRE", "CD", "NOM_CD", "FAC_SEL"]:
+        dtype_dict[col] = "Int8"
+
+# --- Función para procesar un solo archivo y devolver su resumen ---
+def procesar_archivo(file_id, variable_col, tipo_variable, ciudad_sel=None, mapeo_ciudades=None):
     url = f"https://drive.google.com/uc?export=download&id={file_id}"
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        ruta_temp = os.path.join(tmp_dir, "temp.csv")
+        gdown.download(url, output=ruta_temp, quiet=True)
+        df_temp = pd.read_csv(
+            ruta_temp,
+            encoding="latin1",
+            usecols=columnas_necesarias,
+            dtype=dtype_dict,
+            low_memory=False
+        )
 
-    columnas_necesarias = (
-        ["ANIO", "TRIMESTRE", "CD", "NOM_CD", "FAC_SEL"]
-        + list(percepcion_lugares.keys())
-        + list(cambios_habitos.keys())
-        + list(set(efectividad_autoridades_2024_2025.keys()) | set(efectividad_autoridades_2021_2023.keys()))
-        + list(expectativas_delincuencia.keys())
-        + list(efectividad_gobierno.keys())
-        + list(otro_problema.keys())
-        + list(conocimiento_programas.keys())
-    )
-    dtype_dict = {
-        "ANIO": "int16",
-        "TRIMESTRE": "int8",
-        "CD": "category",
-        "NOM_CD": "category",
-        "FAC_SEL": "float32"
-    }
-    for col in columnas_necesarias:
-        if col not in ["ANIO", "TRIMESTRE", "CD", "NOM_CD", "FAC_SEL"]:
-            dtype_dict[col] = "Int8"
+    df_temp["CD"] = pd.to_numeric(df_temp["CD"], errors="coerce").fillna(-1).astype(int)
+    df_temp["NOMBRE_CIUDAD"] = df_temp["CD"].map(mapeo_ciudades).fillna("Desconocido")
 
-    # Descargar y leer el archivo CSV desde Google Drive
-    df = pd.read_csv(
-        gdown.download(url, quiet=False, output=None),
-        encoding="latin1",
-        usecols=columnas_necesarias,
-        dtype=dtype_dict,
-        low_memory=False
-    )
-    return df
+    if ciudad_sel and ciudad_sel != "Estados Unidos Mexicanos":
+        df_temp = df_temp[df_temp["NOMBRE_CIUDAD"] == ciudad_sel]
 
-df = cargar_datos()
+    if df_temp.empty:
+        return pd.DataFrame(columns=["ANIO", "TRIMESTRE", "PORCENTAJE", "PERIODO"])
 
-# Aseguramos que CD sea entero (aunque esté como string o categoría)
-df["CD"] = pd.to_numeric(df["CD"], errors="coerce").fillna(-1).astype(int)
+    resumen = calcular_porcentaje(df_temp, variable_col, tipo_variable)
+    return resumen
 
-# Mapeamos el nombre de la ciudad
-df["NOMBRE_CIUDAD"] = df["CD"].map(mapeo_ciudades).fillna("Desconocido")
-
-# Si prefieres mantener CD como string para compatibilidad:
-df["CD"] = df["CD"].astype(str)
-
-# --- Interfaz ---
-st.title("📊 Histórico ENSU - Inseguridad, Hábitos, Expectativas y Efectividad de Autoridades")
-st.markdown("""
-Explora el **histórico trimestral (2016–2025)** sobre:
-- 🏙️ Percepción de inseguridad por lugar
-- 🚶‍♀️ Cambios de hábitos por temor a la delincuencia
-- 👮‍♂️ Percepción de efectividad de autoridades
-- 🔮 Expectativas sobre la delincuencia
-- 🏛️ Efectividad del gobierno para resolver problemas
-- 🚧 Problemas que enfrenta la ciudad
-- 📢 Conocimiento de programas de prevención contra la violencia/delincuencia
-""")
-
-# --- Selección del tipo de indicador ---
-tipo_variable = st.radio(
-    "Selecciona el tipo de indicador:",
-    [
-        "Percepción de inseguridad",
-        "Cambio de hábitos",
-        "Efectividad de autoridades (2024–2025)",
-        "Efectividad de autoridades (2021–2023)",
-        "Expectativas sobre delincuencia",
-        "Efectividad del gobierno para resolver problemas",
-        "Problemas que enfrenta la ciudad",
-        "Conocimiento de programas de prevención contra la violencia/delincuencia" # Nueva opción
-    ]
-)
-
-# --- Selección de variable según tipo ---
-if tipo_variable == "Percepción de inseguridad":
-    opciones = percepcion_lugares
-elif tipo_variable == "Cambio de hábitos":
-    opciones = cambios_habitos
-elif tipo_variable == "Efectividad de autoridades (2024–2025)":
-    opciones = efectividad_autoridades_2024_2025
-elif tipo_variable == "Efectividad de autoridades (2021–2023)":
-    opciones = efectividad_autoridades_2021_2023
-elif tipo_variable == "Expectativas sobre delincuencia":
-    opciones = expectativas_delincuencia
-elif tipo_variable == "Efectividad del gobierno para resolver problemas":
-    opciones = efectividad_gobierno
-elif tipo_variable == "Problemas que enfrenta la ciudad":
-    opciones = otro_problema
-else: # tipo_variable == "Conocimiento de programas de prevención contra la violencia/delincuencia"
-    opciones = conocimiento_programas
-
-variable_sel = st.selectbox("Selecciona la variable:", list(opciones.values()))
-# Lista única de nombres de ciudades (sin "Desconocido")
-nombres_ciudades = sorted(df[df["NOMBRE_CIUDAD"] != "Desconocido"]["NOMBRE_CIUDAD"].unique())
-ciudad_sel = st.selectbox(
-    "Selecciona la ciudad:",
-    ["Estados Unidos Mexicanos"] + list(nombres_ciudades)
-)
-# --- Obtener columna asociada ---
-variable_col = [k for k, v in opciones.items() if v == variable_sel][0]
-
-# --- Filtrar por ciudad ---
-df_filtrado = df.copy()
-if ciudad_sel != "Estados Unidos Mexicanos":
-    df_filtrado = df_filtrado[df_filtrado["NOMBRE_CIUDAD"] == ciudad_sel]
-
-# --- Filtrar por periodo según tipo ---
-if tipo_variable == "Efectividad de autoridades (2024–2025)":
-    df_filtrado = df_filtrado[df_filtrado["ANIO"].isin([2024, 2025])]
-elif tipo_variable == "Efectividad de autoridades (2021–2023)":
-    df_filtrado = df_filtrado[df_filtrado["ANIO"].between(2021, 2023)]
-
-# --- Función para calcular porcentaje ponderado ---
 # --- Función para calcular porcentaje ponderado ---
 def calcular_porcentaje(df, col, tipo):
-    # --- Lógica para "Conocimiento de programas de prevención" ---
     if tipo == "Conocimiento de programas de prevención contra la violencia/delincuencia":
-        # Filtrar valores válidos: 1 (Sí), 2 (No), 9 (No sabe/No contestó)
         df_val = df[df[col].isin([1, 2, 9])].copy()
         if df_val.empty:
             return pd.DataFrame(columns=["ANIO", "TRIMESTRE", "PORCENTAJE"])
-
-        # Calcular ponderaciones para "Sí"
         df_val["PESO_SI"] = (df_val[col] == 1) * df_val["FAC_SEL"]
-
-        # Agrupar por año y trimestre
         resumen = df_val.groupby(["ANIO", "TRIMESTRE"]).agg(
             TOTAL_VALIDOS=('FAC_SEL', 'sum'),
             TOTAL_SI=('PESO_SI', 'sum')
         ).reset_index()
-
-        # Calcular porcentaje de "Sí"
         resumen["PORCENTAJE"] = (100 * resumen["TOTAL_SI"] / resumen["TOTAL_VALIDOS"]).round(2)
 
-    # --- Lógica para "Otro problema que no sea delincuencia ni inseguridad" ---
     elif tipo == "Problemas que enfrenta la ciudad":
         df_val = df[df[col].isin([0, 1])].copy()
         if df_val.empty:
             return pd.DataFrame(columns=["ANIO", "TRIMESTRE", "PORCENTAJE"])
-
         df_val["PESO_SI"] = (df_val[col] == 1) * df_val["FAC_SEL"]
-
         resumen = df_val.groupby(["ANIO", "TRIMESTRE"]).agg(
             TOTAL_VALIDOS=('FAC_SEL', 'sum'),
             TOTAL_SI=('PESO_SI', 'sum')
         ).reset_index()
-
         resumen["PORCENTAJE"] = (100 * resumen["TOTAL_SI"] / resumen["TOTAL_VALIDOS"]).round(2)
 
-    # --- Lógica para los otros tipos ---
     else:
-        # ✅ Corrección clave: para "Percepción de inseguridad", solo usar 1 y 2
         if tipo in ["Percepción de inseguridad", "Cambio de hábitos"]:
             df_val = df[df[col].isin([1, 2])].copy()
         else:
-            # Para otros tipos, mantener el rango original
             df_val = df[df[col].isin([1, 2, 3, 4, 9])].copy()
 
         if df_val.empty:
@@ -382,16 +343,108 @@ def calcular_porcentaje(df, col, tipo):
         if tipo == "Expectativas sobre delincuencia":
             resumen["PORCENTAJE_IGUAL"] = (100 * resumen["TOTAL_IGUAL"] / resumen["TOTAL_VALIDOS"]).round(2)
             resumen["PORCENTAJE_EMPEORARA"] = (100 * resumen["TOTAL_EMPEORARA"] / resumen["TOTAL_VALIDOS"]).round(2)
-            resumen["PORCENTAJE_TOTAL"] = (
-                100 * (resumen["TOTAL_IGUAL"] + resumen["TOTAL_EMPEORARA"]) / resumen["TOTAL_VALIDOS"]
-            ).round(2)
+            resumen["PORCENTAJE_TOTAL"] = (100 * (resumen["TOTAL_IGUAL"] + resumen["TOTAL_EMPEORARA"]) / resumen["TOTAL_VALIDOS"]).round(2)
 
     resumen["PERIODO"] = resumen["ANIO"].astype(str) + "-" + resumen["TRIMESTRE"].astype(str)
     return resumen.sort_values(["ANIO", "TRIMESTRE"])
 
-# --- Calcular y mostrar resultados ---
-resumen = calcular_porcentaje(df_filtrado, variable_col, tipo_variable)
+# --- Interfaz ---
+st.title("📊 Histórico ENSU - Inseguridad, Hábitos, Expectativas y Efectividad de Autoridades")
+st.markdown("""
+Explora el **histórico trimestral (2016–2025)** sobre:
+- 🏙️ Percepción de inseguridad por lugar
+- 🚶‍♀️ Cambios de hábitos por temor a la delincuencia
+- 👮‍♂️ Percepción de efectividad de autoridades
+- 🔮 Expectativas sobre la delincuencia
+- 🏛️ Efectividad del gobierno para resolver problemas
+- 🚧 Problemas que enfrenta la ciudad
+- 📢 Conocimiento de programas de prevención contra la violencia/delincuencia
+""")
 
+# --- Selección del tipo de indicador ---
+tipo_variable = st.radio(
+    "Selecciona el tipo de indicador:",
+    [
+        "Percepción de inseguridad",
+        "Cambio de hábitos",
+        "Efectividad de autoridades (2024–2025)",
+        "Efectividad de autoridades (2021–2023)",
+        "Expectativas sobre delincuencia",
+        "Efectividad del gobierno para resolver problemas",
+        "Problemas que enfrenta la ciudad",
+        "Conocimiento de programas de prevención contra la violencia/delincuencia"
+    ]
+)
+
+# --- Selección de variable según tipo ---
+if tipo_variable == "Percepción de inseguridad":
+    opciones = percepcion_lugares
+elif tipo_variable == "Cambio de hábitos":
+    opciones = cambios_habitos
+elif tipo_variable == "Efectividad de autoridades (2024–2025)":
+    opciones = efectividad_autoridades_2024_2025
+elif tipo_variable == "Efectividad de autoridades (2021–2023)":
+    opciones = efectividad_autoridades_2021_2023
+elif tipo_variable == "Expectativas sobre delincuencia":
+    opciones = expectativas_delincuencia
+elif tipo_variable == "Efectividad del gobierno para resolver problemas":
+    opciones = efectividad_gobierno
+elif tipo_variable == "Problemas que enfrenta la ciudad":
+    opciones = otro_problema
+else:
+    opciones = conocimiento_programas
+
+variable_sel = st.selectbox("Selecciona la variable:", list(opciones.values()))
+variable_col = [k for k, v in opciones.items() if v == variable_sel][0]
+
+# --- Obtener lista de ciudades (usando un archivo de muestra) ---
+@st.cache_data(ttl=3600)
+def obtener_lista_ciudades():
+    primer_id = next(iter(archivos_drive.values()))
+    url = f"https://drive.google.com/uc?export=download&id={primer_id}"
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        ruta_temp = os.path.join(tmp_dir, "temp.csv")
+        gdown.download(url, output=ruta_temp, quiet=True)
+        df_temp = pd.read_csv(ruta_temp, usecols=["CD"], encoding="latin1", low_memory=False)
+    df_temp["CD"] = pd.to_numeric(df_temp["CD"], errors="coerce").fillna(-1).astype(int)
+    df_temp["NOMBRE_CIUDAD"] = df_temp["CD"].map(mapeo_ciudades).fillna("Desconocido")
+    return sorted(df_temp[df_temp["NOMBRE_CIUDAD"] != "Desconocido"]["NOMBRE_CIUDAD"].unique())
+
+nombres_ciudades = obtener_lista_ciudades()
+ciudad_sel = st.selectbox("Selecciona la ciudad:", ["Estados Unidos Mexicanos"] + nombres_ciudades)
+
+# --- Procesar archivos relevantes según selección ---
+with st.spinner("Cargando y procesando datos históricos..."):
+    todos_resumenes = []
+    for periodo, file_id in archivos_drive.items():
+        # Aplicar filtro de periodo si es necesario
+        if tipo_variable == "Efectividad de autoridades (2024–2025)":
+            if not any(periodo.startswith(a) for a in ["2024", "2025"]):
+                continue
+        elif tipo_variable == "Efectividad de autoridades (2021–2023)":
+            if not any(periodo.startswith(a) for a in ["2021", "2022", "2023"]):
+                continue
+
+        try:
+            resumen_parcial = procesar_archivo(
+                file_id=file_id,
+                variable_col=variable_col,
+                tipo_variable=tipo_variable,
+                ciudad_sel=ciudad_sel,
+                mapeo_ciudades=mapeo_ciudades
+            )
+            if not resumen_parcial.empty:
+                todos_resumenes.append(resumen_parcial)
+        except Exception as e:
+            st.warning(f"Error al procesar {periodo}: {str(e)}")
+            continue
+
+    if todos_resumenes:
+        resumen = pd.concat(todos_resumenes, ignore_index=True).sort_values(["ANIO", "TRIMESTRE"])
+    else:
+        resumen = pd.DataFrame()
+
+# --- Mostrar resultados ---
 if resumen.empty:
     st.warning(f"No hay datos válidos para '{variable_sel}' en la ciudad seleccionada.")
 else:
@@ -401,9 +454,10 @@ else:
     if tipo_variable == "Expectativas sobre delincuencia":
         st.dataframe(resumen[["PERIODO", "PORCENTAJE_IGUAL", "PORCENTAJE_EMPEORARA", "PORCENTAJE_TOTAL"]])
         st.line_chart(resumen.set_index("PERIODO")[["PORCENTAJE_IGUAL", "PORCENTAJE_EMPEORARA"]])
-    else: # Para todos los demás tipos, incluyendo el nuevo
+    else:
         st.dataframe(resumen[["PERIODO", "PORCENTAJE"]])
         st.line_chart(resumen.set_index("PERIODO")["PORCENTAJE"])
+
 
     # python -m streamlit run C:\Users\Usuario\Downloads\ensu_app\app.py
 
