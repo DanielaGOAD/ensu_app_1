@@ -188,7 +188,7 @@ mapeo_ciudades = {
 # --- Cargar datos desde Google Drive ---
 @st.cache_data
 def cargar_datos():
-    file_id = "1VLMGozkGzj1eETDBAMQU296P2Z4r1wpY"
+    file_id = ["1VLMGozkGzj1eETDBAMQU296P2Z4r1wpY" , "1qktfndQFrzc-RRzJ6fF-vXNnGwttz6kD"]
     url = f"https://drive.google.com/uc?export=download&id={file_id}"
 
     columnas_necesarias = (
